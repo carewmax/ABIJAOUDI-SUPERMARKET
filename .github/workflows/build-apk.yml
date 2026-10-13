@@ -9,42 +9,59 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Install dependencies
-        run: npm install
+      - name: Check the website file exists
+        run: |
+          ls -la
+          test -f index.html || (echo "index.html is missing from the repo root" && exit 1)
+
+      - name: Set up Capacitor
+        run: |
+          mkdir app && cd app
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 react@18.3.1 react-dom@18.3.1 htm@3.1.1
+          cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "com.abijaoudi.supermarket",
+            "appName": "Abijaoudi Supermarket",
+            "webDir": "www",
+            "backgroundColor": "#0b2bc2"
+          }
+          JSON
 
       - name: Prepare web files (bundled so the app also opens offline)
+        working-directory: app
         run: |
           mkdir -p www/vendor
-          cp index.html www/index.html
-          cp -r assets www/assets
-          npm install --no-save react@18.3.1 react-dom@18.3.1 htm@3.1.1
+          cp ../index.html www/index.html
+          if [ -d ../assets ]; then cp -r ../assets www/assets; fi
           cp node_modules/react/umd/react.production.min.js www/vendor/
           cp node_modules/react-dom/umd/react-dom.production.min.js www/vendor/
           cp node_modules/htm/dist/htm.umd.js www/vendor/
           sed -i 's#https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js#vendor/react.production.min.js#; s#https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js#vendor/react-dom.production.min.js#; s#https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.umd.js#vendor/htm.umd.js#' www/index.html
 
       - name: Create Android project
+        working-directory: app
         run: |
           npx cap add android
           npx cap sync android
 
       - name: Build debug APK
-        working-directory: android
+        working-directory: app/android
         run: ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Abijaoudi-Supermarket-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: app/android/app/build/outputs/apk/debug/app-debug.apk
